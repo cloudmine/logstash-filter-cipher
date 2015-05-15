@@ -171,16 +171,11 @@ class LogStash::Filters::Cipher < LogStash::Filters::Base
           'encryptionContext' => "#{context_json}",
             'iv' => iv
         }
-        puts outputhash
         result = outputhash
       end
 
     rescue => e
-      @logger.warn("*********************************************")
-      @logger.warn("*********************************************")
       @logger.warn("Exception catch on cipher filter", :event => event, :error => e)
-      @logger.warn("*********************************************")
-      @logger.warn("*********************************************")
 
       # force a re-initialize on error to be safe
       init_cipher
@@ -203,16 +198,6 @@ class LogStash::Filters::Cipher < LogStash::Filters::Base
   end # def filter
 
   def init_cipher
-    puts "INITING*********************************"
-    puts "INITING*********************************"
-    puts "INITING*********************************"
-    puts "INITING*********************************"
-    puts ENV.inspect
-    puts "INITING*********************************"
-    puts ENV["KMS_AWS_ACCESS_KEY_ID"]
-    puts ENV["KMS_AWS_SECRET_ACCESS_KEY"]
-
-
     Aws.config.update({region: 'us-east-1', credentials: Aws::Credentials.new(ENV["KMS_AWS_ACCESS_KEY_ID"], ENV["KMS_AWS_SECRET_ACCESS_KEY"])})
     @kms = Aws::KMS::Client.new(region:'us-east-1')
     if !@cipher.nil?

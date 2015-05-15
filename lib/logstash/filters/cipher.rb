@@ -153,13 +153,34 @@ class LogStash::Filters::Cipher < LogStash::Filters::Base
         decryptedKey = @kms.decrypt(:ciphertext_blob =>  encryptedKey,
                                    encryption_context: encryptionContext
                                   )
-        @cipher.iv = dataHash["iv"]
+        @cipher.iv = dataHash["iv"]        
         @cipher.key = decryptedKey.plaintext
+        result = @cipher.update(data) + @cipher.final
+      end
+      if @mode == "encrypt"
+        context_json = { 'KafkaTopic' => 'Slow Query Log' }
+        kms_resp = @kms.generate_data_key( key_id: @key, key_spec: "AES_256", encryption_context: context_json )
+        @cipher.key = kms_resp[:plaintext]
+        iv = @cipher.random_iv
+        @cipher.iv = iv
+        encrypted_data = @cipher.update(data)
+        encrypted_data << @cipher.final
+        encrypted_key = Base64.strict_encode64(kms_resp.ciphertext_blob)
+        outputhash = { 'encryptedDatas' => encrypted_data,
+                 'encryptedKey' => encrypted_key,
+          'encryptionContext' => "#{context_json}",
+            'iv' => iv
+        }
+        puts outputhash
+        result = outputhash
       end
 
-      result = @cipher.update(data) + @cipher.final
     rescue => e
+      @logger.warn("*********************************************")
+      @logger.warn("*********************************************")
       @logger.warn("Exception catch on cipher filter", :event => event, :error => e)
+      @logger.warn("*********************************************")
+      @logger.warn("*********************************************")
 
       # force a re-initialize on error to be safe
       init_cipher

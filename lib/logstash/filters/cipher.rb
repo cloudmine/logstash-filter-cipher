@@ -147,19 +147,26 @@ class LogStash::Filters::Cipher < LogStash::Filters::Base
         dataHash = eval(data)
         data = dataHash["encryptedDatas"]
 
+        if dataHash.has_key?("tag")
+          tag = dataHash["tag"]
+          tag = event.sprintf(tag)
+          @logger.debug? and @logger.debug("adding tag", :tag => tag)
+          (event["cloudmine_type"] ||= []) << tag
+        end
+
         encryptedKey = Base64.strict_decode64(dataHash["encryptedKey"])
         encryptionContext = eval(dataHash['encryptionContext'])
 
         decryptedKey = @kms.decrypt(:ciphertext_blob =>  encryptedKey,
                                    encryption_context: encryptionContext
                                   )
-        @cipher.iv = dataHash["iv"]        
+        @cipher.iv = dataHash["iv"]
         @cipher.key = decryptedKey.plaintext
         result = @cipher.update(data) + @cipher.final
       end
       if @mode == "encrypt"
         context_json = { 'KafkaTopic' => 'Slow Query Log' }
-        kms_resp = @kms.generate_data_key( key_id: @key, key_spec: "AES_256", encryption_context: context_json )
+        kms_resp = @kms.generate_data_key( key_id: ENV["KMS_KEY_ID"], key_spec: "AES_256", encryption_context: context_json )
         @cipher.key = kms_resp[:plaintext]
         iv = @cipher.random_iv
         @cipher.iv = iv
@@ -167,16 +174,16 @@ class LogStash::Filters::Cipher < LogStash::Filters::Base
         encrypted_data << @cipher.final
         encrypted_key = Base64.strict_encode64(kms_resp.ciphertext_blob)
         outputhash = { 'encryptedDatas' => encrypted_data,
-                 'encryptedKey' => encrypted_key,
-          'encryptionContext' => "#{context_json}",
-            'iv' => iv
+                       'encryptedKey' => encrypted_key,
+                       'encryptionContext' => "#{context_json}",
+                       'iv' => iv
         }
+        outputhash = Base64.strict_encode64(outputhash.to_s)
         result = outputhash
       end
 
     rescue => e
       @logger.warn("Exception catch on cipher filter", :event => event, :error => e)
-
       # force a re-initialize on error to be safe
       init_cipher
 

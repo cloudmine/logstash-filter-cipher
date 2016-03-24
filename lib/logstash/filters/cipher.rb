@@ -157,11 +157,15 @@ class LogStash::Filters::Cipher < LogStash::Filters::Base
         encryptedKey = Base64.strict_decode64(dataHash["encryptedKey"])
         encryptionContext = eval(dataHash['encryptionContext'])
 
-        decryptedKey = @kms.decrypt(:ciphertext_blob =>  encryptedKey,
-                                   encryption_context: encryptionContext
-                                  )
+        unless @keys_hash.has_key? encryptedKey
+          @logger.warn("YES FETCH")
+          @decryptedKey = @kms.decrypt(:ciphertext_blob =>  encryptedKey,
+                                       encryption_context: encryptionContext)
+          @keys_hash[encryptedKey] = @decryptedKey
+        end
+
         @cipher.iv = dataHash["iv"]
-        @cipher.key = decryptedKey.plaintext
+        @cipher.key = @keys_hash[encryptedKey].plaintext
         result = @cipher.update(data) + @cipher.final
       end
       if @mode == "encrypt"
@@ -213,7 +217,9 @@ class LogStash::Filters::Cipher < LogStash::Filters::Base
 
     @cipher = OpenSSL::Cipher.new(@algorithm)
 
+    # reset total_cipher_uses and reset the keys_hash
     @total_cipher_uses = 0
+    @keys_hash = {}
 
     @logger.debug "Mode #{@mode}"
     if @mode == "encrypt"

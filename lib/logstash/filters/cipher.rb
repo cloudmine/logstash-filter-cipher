@@ -159,9 +159,9 @@ class LogStash::Filters::Cipher < LogStash::Filters::Base
 
         unless @keys_hash.has_key? encryptedKey
           @logger.warn("YES FETCH")
-          @decryptedKey = @kms.decrypt(:ciphertext_blob =>  encryptedKey,
-                                       encryption_context: encryptionContext)
-          @keys_hash[encryptedKey] = @decryptedKey
+          decryptedKey = @kms.decrypt(:ciphertext_blob    =>  encryptedKey,
+                                      :encryption_context => encryptionContext)
+          @keys_hash[encryptedKey] = decryptedKey
         end
 
         @cipher.iv = dataHash["iv"]
